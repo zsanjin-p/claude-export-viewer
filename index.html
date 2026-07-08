@@ -757,7 +757,7 @@ function processConversations(wrapped, usersMap) {
       batch: batchName
     });
 
-    details[uuid] = { uuid, name, createdAt, updatedAt, messages, accountUuid, batch: batchName };
+    details[uuid] = { uuid, name, createdAt, updatedAt, messages, accountUuid, batch: batchName, rawJson: safeStringify(conv, true) };
     searchDocs.push({ uuid, text: (name + ' \n ' + convText).toLowerCase() });
 
     if (i % 5 === 0 || i === total - 1) {
@@ -853,8 +853,8 @@ function truncate(s, n) {
   return s.slice(0, n - 1) + '…';
 }
 
-function safeStringify(obj) {
-  try { return JSON.stringify(obj); } catch (e) { return ''; }
+function safeStringify(obj, pretty) {
+  try { return JSON.stringify(obj, null, pretty ? 2 : 0); } catch (e) { return ''; }
 }
 `;
 
@@ -1441,6 +1441,7 @@ function safeStringify(obj) {
         <div class="headerBtns">
           <button class="hbtn" id="expandAllBtn">展开全部工具块</button>
           <button class="hbtn" id="exportMdBtn">导出为 Markdown</button>
+          <button class="hbtn" id="exportJsonBtn">导出原始 JSON</button>
         </div>
       </div>
       <div id="msgScroll">
@@ -1461,6 +1462,7 @@ function safeStringify(obj) {
       document.querySelectorAll('.blockHead').forEach(h => setBlockOpen(h, true));
     });
     $('#exportMdBtn').addEventListener('click', () => exportConversationMarkdown(conv));
+    $('#exportJsonBtn').addEventListener('click', () => exportConversationRawJson(conv));
 
     msgScroll.scrollTop = 0;
   }
@@ -1600,11 +1602,24 @@ function safeStringify(obj) {
         if (a.extracted_content) md += '```\n' + a.extracted_content + '\n```\n\n';
       }
     }
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    downloadBlob(md, (conv.name || 'conversation').replace(/[\\/:*?"<>|]/g, '_') + '.md', 'text/markdown;charset=utf-8');
+  }
+
+  // ================= Export current conversation's original JSON block =================
+  function exportConversationRawJson(conv) {
+    if (!conv.rawJson) {
+      showToast('这份数据里没有保存原始 JSON（可能来自旧版本缓存），请重新导入后再试');
+      return;
+    }
+    downloadBlob(conv.rawJson, (conv.name || 'conversation').replace(/[\\/:*?"<>|]/g, '_') + '.json', 'application/json;charset=utf-8');
+  }
+
+  function downloadBlob(text, filename, mimeType) {
+    const blob = new Blob([text], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = (conv.name || 'conversation').replace(/[\\/:*?"<>|]/g, '_') + '.md';
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
